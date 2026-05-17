@@ -1,0 +1,118 @@
+name: PathFindr CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ── Lint & Test Backend ──
+  backend:
+    name: Backend - Lint & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pathfindr-backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: pathfindr-backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run tests
+        run: npm test
+        continue-on-error: true
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test_secret_for_ci_only
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+
+  # ── Lint & Build Frontend ──
+  frontend:
+    name: Frontend - Lint & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pathfindr-frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: pathfindr-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_URL: /api
+
+  # ── Docker Build (only on main) ──
+  docker:
+    name: Docker Build & Push
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build & Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./pathfindr-backend
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/pathfindr-backend:latest
+            ${{ secrets.DOCKER_USERNAME }}/pathfindr-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./pathfindr-frontend
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/pathfindr-frontend:latest
+            ${{ secrets.DOCKER_USERNAME }}/pathfindr-frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

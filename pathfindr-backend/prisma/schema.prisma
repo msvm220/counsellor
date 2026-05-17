@@ -1,0 +1,516 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+// =============================================
+// USER TABLE — base table for ALL user types
+// =============================================
+model User {
+  id              String    @id @default(cuid())
+  email           String?   @unique
+  phone           String?   @unique
+  name            String
+  passwordHash    String?
+  role            UserRole  @default(STUDENT)
+  isVerified      Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  avatarUrl       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  studentProfile  StudentProfile?
+  counselorProfile CounselorProfile?
+  parentProfile   ParentProfile?
+  sessions        Booking[]  @relation("StudentBookings")
+  sentMessages    Message[]
+  notifications   Notification[]
+  otp             OTP[]
+}
+
+enum UserRole {
+  STUDENT
+  COUNSELOR
+  PARENT
+  ADMIN
+}
+
+// =============================================
+// STUDENT PROFILE
+// =============================================
+model StudentProfile {
+  id                  String    @id @default(cuid())
+  userId              String    @unique
+  user                User      @relation(fields: [userId], references: [id])
+  currentClass        String?   // "Class 10", "Class 12", "Graduate", "Working"
+  streamInterest      String?   // "Science", "Commerce", "Arts", "Undecided"
+  cityTier            CityTier  @default(TIER2)
+  city                String?
+  state               String?
+  languagePreference  String    @default("en")
+  clarityScore        Int?      // 0-100, calculated after quick assessment
+  parentLinked        Boolean   @default(false)
+  parentId            String?
+  subscriptionPlan    String    @default("FREE") // "FREE", "CLARITY", "BUNDLE"
+  subscriptionExpiry  DateTime?
+  createdAt           DateTime  @default(now())
+
+  // Relations
+  assessmentResults   AssessmentResult[]
+  roadmap             Roadmap?
+  bookings            Booking[]
+  savedCareers        SavedCareer[]
+  weeklyPulse         WeeklyPulse[]
+}
+
+enum CityTier {
+  TIER1
+  TIER2
+  TIER3
+}
+
+// =============================================
+// COUNSELOR PROFILE
+// =============================================
+model CounselorProfile {
+  id                  String    @id @default(cuid())
+  userId              String    @unique
+  user                User      @relation(fields: [userId], references: [id])
+  bio                 String?   @db.Text
+  specializations     String[]  // Array: ["Engineering", "Medicine", "MBA"]
+  experience          Int?      // Years of experience
+  currentRole         String?   // "IIT Professor", "Ex-McKinsey", etc.
+  sessionRateInr      Int       @default(1500) // Price per session in INR
+  parentSessionRate   Int       @default(999)
+  introVideoUrl       String?   // 30-sec intro video
+  isApproved          Boolean   @default(false) // Admin must approve
+  isAvailable         Boolean   @default(true)
+  languages           String[]  // ["Hindi", "English", "Bengali"]
+  outcomeScore        Float?    // Calculated from student outcome check-ins (0-100)
+  totalSessions       Int       @default(0)
+  averageRating       Float     @default(0)
+  linkedinUrl         String?
+  createdAt           DateTime  @default(now())
+
+  // Relations
+  bookings            Booking[]
+  availability        CounselorAvailability[]
+  reviews             Review[]
+  roadmaps            Roadmap[]
+}
+
+// =============================================
+// PARENT PROFILE
+// =============================================
+model ParentProfile {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id])
+  childIds    String[]  // Array of StudentProfile IDs
+  createdAt   DateTime  @default(now())
+}
+
+// =============================================
+// ASSESSMENT — Questions Bank
+// =============================================
+model AssessmentQuestion {
+  id              String    @id @default(cuid())
+  questionText    String
+  questionType    QuestionType
+  options         Json?     // For MCQ: [{label: "A", value: 1}, ...]
+  category        String    // "personality", "interest", "aptitude", "values"
+  weight          Float     @default(1.0) // Importance weight for scoring
+  orderIndex      Int       // Display order
+  isActive        Boolean   @default(true)
+
+  // Adaptive logic
+  isAdaptive      Boolean   @default(false)
+  triggerCategory String?   // Show this question only if previous category score > threshold
+  triggerScore    Float?
+
+  answers         AssessmentAnswer[]
+}
+
+enum QuestionType {
+  MCQ
+  SLIDER
+  RANKING
+  YES_NO
+}
+
+// =============================================
+// ASSESSMENT RESULT — stored per student
+// =============================================
+model AssessmentResult {
+  id                  String    @id @default(cuid())
+  studentProfileId    String
+  studentProfile      StudentProfile @relation(fields: [studentProfileId], references: [id])
+  completedAt         DateTime  @default(now())
+  clarityScore        Int       // 0-100
+  failureRiskScore    Int?      // 0-100 (generated after enough data)
+  personalityType     String?   // e.g., "Investigative-Artistic"
+  strengthTags        String[]  // ["Analytical", "Creative", "Leadership"]
+  weaknessTags        String[]
+  rawScores           Json      // {personality: {I:80, A:60, ...}, interest: {...}}
+  isComplete          Boolean   @default(false)
+
+  answers             AssessmentAnswer[]
+  recommendations     CareerRecommendation[]
+}
+
+// =============================================
+// ASSESSMENT ANSWERS — individual answers
+// =============================================
+model AssessmentAnswer {
+  id                    String    @id @default(cuid())
+  assessmentResultId    String
+  assessmentResult      AssessmentResult @relation(fields: [assessmentResultId], references: [id])
+  questionId            String
+  question              AssessmentQuestion @relation(fields: [questionId], references: [id])
+  answerValue           String    // The selected option or slider value
+  timeSpentSeconds      Int?      // How long they spent on this question
+  changedAnswer         Boolean   @default(false) // Did they change their answer?
+  createdAt             DateTime  @default(now())
+}
+
+// =============================================
+// CAREER — master list of all careers
+// =============================================
+model Career {
+  id                  String    @id @default(cuid())
+  name                String    @unique // "Software Engineer", "Chartered Accountant"
+  slug                String    @unique // "software-engineer"
+  description         String    @db.Text
+  category            String    // "Technology", "Finance", "Healthcare", etc.
+  subcategory         String?
+  dayInLifeVideoUrl   String?
+  salaryTier1Min      Int?      // Monthly salary in INR for Tier 1 city, entry level
+  salaryTier1Max      Int?
+  salaryTier2Min      Int?
+  salaryTier2Max      Int?
+  salaryTier3Min      Int?
+  salaryTier3Max      Int?
+  salaryAt5yrsMin     Int?      // 5 years experience
+  salaryAt5yrsMax     Int?
+  salaryAt10yrsMin    Int?
+  salaryAt10yrsMax    Int?
+  educationPath       Json      // ["Class 12 Science", "B.Tech CS", "Campus Placement"]
+  topMisconceptions   String[]
+  exitPaths           String[]  // Where people go if they leave this career
+  keySkills           String[]
+  personalityTags     String[]  // Which personality types fit this
+  interestTags        String[]  // Which interest areas align
+  difficultyLevel     Int       // 1-5 (1=easy to enter, 5=very competitive)
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+
+  recommendations     CareerRecommendation[]
+  savedBy             SavedCareer[]
+}
+
+// =============================================
+// CAREER RECOMMENDATION — links student to career
+// =============================================
+model CareerRecommendation {
+  id                  String    @id @default(cuid())
+  assessmentResultId  String
+  assessmentResult    AssessmentResult @relation(fields: [assessmentResultId], references: [id])
+  careerId            String
+  career              Career    @relation(fields: [careerId], references: [id])
+  matchScore          Float     // 0-100, how well this career matches the student
+  rank                Int       // 1 = top match, 2 = second, etc.
+  failureRisk         Float?    // 0-100, risk of leaving this path
+  failureRiskReasons  String[]
+  createdAt           DateTime  @default(now())
+}
+
+// =============================================
+// SAVED CAREER — student bookmarks a career
+// =============================================
+model SavedCareer {
+  id                  String    @id @default(cuid())
+  studentProfileId    String
+  studentProfile      StudentProfile @relation(fields: [studentProfileId], references: [id])
+  careerId            String
+  career              Career    @relation(fields: [careerId], references: [id])
+  savedAt             DateTime  @default(now())
+}
+
+// =============================================
+// COUNSELOR AVAILABILITY — time slots
+// =============================================
+model CounselorAvailability {
+  id                  String    @id @default(cuid())
+  counselorProfileId  String
+  counselorProfile    CounselorProfile @relation(fields: [counselorProfileId], references: [id])
+  dayOfWeek           Int       // 0=Sunday, 1=Monday, ..., 6=Saturday
+  startTime           String    // "09:00" (24hr format, IST)
+  endTime             String    // "17:00"
+  isRecurring         Boolean   @default(true)
+  specificDate        DateTime? // For non-recurring, one-time availability
+  isBlocked           Boolean   @default(false) // Blocked = not available
+}
+
+// =============================================
+// BOOKING — session bookings
+// =============================================
+model Booking {
+  id                  String    @id @default(cuid())
+  studentId           String
+  student             User      @relation("StudentBookings", fields: [studentId], references: [id])
+  studentProfileId    String
+  studentProfile      StudentProfile @relation(fields: [studentProfileId], references: [id])
+  counselorProfileId  String
+  counselorProfile    CounselorProfile @relation(fields: [counselorProfileId], references: [id])
+  sessionType         SessionType @default(STUDENT_SESSION)
+  scheduledAt         DateTime  // When the session is scheduled
+  durationMinutes     Int       @default(45)
+  status              BookingStatus @default(PENDING)
+  amountInr           Int       // Amount paid
+  videoRoomUrl        String?   // Daily.co room URL
+  videoRoomToken      String?   // Student's Daily.co access token
+  counselorToken      String?   // Counselor's Daily.co access token
+  notes               String?   @db.Text // Student's notes before session
+  cancelReason        String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  payment             Payment?
+  review              Review?
+  sessionNotes        SessionNote?
+  messages            Message[]
+}
+
+enum SessionType {
+  STUDENT_SESSION   // Regular 45-min student session
+  PARENT_SESSION    // Parent-only briefing session
+  BUNDLE_SESSION    // Part of a paid bundle
+}
+
+enum BookingStatus {
+  PENDING           // Created, payment not done
+  CONFIRMED         // Payment done, session scheduled
+  COMPLETED         // Session happened
+  CANCELLED         // Cancelled by either party
+  NO_SHOW           // Student did not show up
+}
+
+// =============================================
+// PAYMENT — Razorpay payment records
+// =============================================
+model Payment {
+  id                    String    @id @default(cuid())
+  bookingId             String    @unique
+  booking               Booking   @relation(fields: [bookingId], references: [id])
+  razorpayOrderId       String    @unique
+  razorpayPaymentId     String?   @unique
+  razorpaySignature     String?
+  amountInr             Int
+  currency              String    @default("INR")
+  status                PaymentStatus @default(CREATED)
+  method                String?   // "upi", "card", "netbanking"
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+enum PaymentStatus {
+  CREATED
+  PAID
+  FAILED
+  REFUNDED
+}
+
+// =============================================
+// REVIEW — student reviews counselor after session
+// =============================================
+model Review {
+  id                  String    @id @default(cuid())
+  bookingId           String    @unique
+  booking             Booking   @relation(fields: [bookingId], references: [id])
+  counselorProfileId  String
+  counselorProfile    CounselorProfile @relation(fields: [counselorProfileId], references: [id])
+  rating              Int       // 1-5
+  comment             String?   @db.Text
+  isPublic            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+}
+
+// =============================================
+// SESSION NOTES — counselor notes after session
+// =============================================
+model SessionNote {
+  id              String    @id @default(cuid())
+  bookingId       String    @unique
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+  summary         String    @db.Text // What was discussed
+  actionItems     String[]  // What the student should do next
+  topicsTagged    String[]  // ["stream selection", "college application", "skill gap"]
+  sharedWithStudent Boolean @default(true)
+  createdAt       DateTime  @default(now())
+}
+
+// =============================================
+// CHAT MESSAGES
+// =============================================
+model Message {
+  id          String    @id @default(cuid())
+  bookingId   String    // Message belongs to a booking's chat
+  booking     Booking   @relation(fields: [bookingId], references: [id])
+  senderId    String
+  sender      User      @relation(fields: [senderId], references: [id])
+  content     String    @db.Text
+  type        MessageType @default(TEXT)
+  fileUrl     String?
+  isRead      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+}
+
+enum MessageType {
+  TEXT
+  FILE
+  IMAGE
+  SYSTEM   // "Session started", "Session ended"
+}
+
+// =============================================
+// ROADMAP — career roadmap per student
+// =============================================
+model Roadmap {
+  id                  String    @id @default(cuid())
+  studentProfileId    String    @unique
+  studentProfile      StudentProfile @relation(fields: [studentProfileId], references: [id])
+  counselorProfileId  String?   // If created by counselor
+  counselorProfile    CounselorProfile? @relation(fields: [counselorProfileId], references: [id])
+  targetCareer        String
+  title               String
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  milestones          Milestone[]
+}
+
+// =============================================
+// MILESTONE — individual steps in a roadmap
+// =============================================
+model Milestone {
+  id              String    @id @default(cuid())
+  roadmapId       String
+  roadmap         Roadmap   @relation(fields: [roadmapId], references: [id])
+  title           String
+  description     String?   @db.Text
+  dueDate         DateTime?
+  status          MilestoneStatus @default(NOT_STARTED)
+  orderIndex      Int
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+}
+
+enum MilestoneStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+// =============================================
+// RESOURCE — articles, videos, courses
+// =============================================
+model Resource {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  type        ResourceType
+  url         String
+  thumbnailUrl String?
+  careerTags  String[]  // Which careers this resource applies to
+  tags        String[]
+  isPremium   Boolean   @default(false) // Only paid subscribers can see
+  viewCount   Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  bookmarks   Bookmark[]
+}
+
+enum ResourceType {
+  ARTICLE
+  VIDEO
+  COURSE
+  PODCAST
+  TOOL
+}
+
+// =============================================
+// BOOKMARK — student saves a resource
+// =============================================
+model Bookmark {
+  id          String    @id @default(cuid())
+  userId      String
+  resourceId  String
+  resource    Resource  @relation(fields: [resourceId], references: [id])
+  createdAt   DateTime  @default(now())
+}
+
+// =============================================
+// WEEKLY PULSE — weekly 3-question check-in
+// =============================================
+model WeeklyPulse {
+  id                  String    @id @default(cuid())
+  studentProfileId    String
+  studentProfile      StudentProfile @relation(fields: [studentProfileId], references: [id])
+  weekNumber          Int       // Week number of the year
+  year                Int
+  q1Answer            String?   // "How confident are you feeling about your career direction? (1-10)"
+  q2Answer            String?   // "Did you do something career-related this week? (yes/no/little)"
+  q3Answer            String?   // "What's your biggest concern right now? (free text)"
+  completedAt         DateTime?
+  createdAt           DateTime  @default(now())
+}
+
+// =============================================
+// OUTCOME CHECKIN — 6-month / 1-year follow-up
+// =============================================
+model OutcomeCheckIn {
+  id                  String    @id @default(cuid())
+  studentProfileId    String
+  checkInType         String    // "6_MONTHS", "1_YEAR", "3_YEARS"
+  isOnRecommendedPath Boolean?
+  satisfactionScore   Int?      // 1-10
+  careerChosen        String?
+  notes               String?   @db.Text
+  completedAt         DateTime?
+  createdAt           DateTime  @default(now())
+}
+
+// =============================================
+// NOTIFICATION
+// =============================================
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  title       String
+  body        String
+  type        String    // "BOOKING_CONFIRMED", "SESSION_REMINDER", "PULSE_DUE", etc.
+  isRead      Boolean   @default(false)
+  actionUrl   String?   // Where to go when clicked
+  createdAt   DateTime  @default(now())
+}
+
+// =============================================
+// OTP — One-time passwords for phone/email verify
+// =============================================
+model OTP {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  code        String    // 6-digit code (store as hash in production)
+  purpose     String    // "PHONE_VERIFY", "EMAIL_VERIFY", "LOGIN", "FORGOT_PASSWORD"
+  expiresAt   DateTime
+  isUsed      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+}
