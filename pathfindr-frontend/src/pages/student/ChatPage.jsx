@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
-import axios from 'axios';
+import api from '../../api/axios';
 import { Send, Smile, Paperclip, ChevronLeft, Video, Phone } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { motion } from 'framer-motion';
@@ -24,7 +24,7 @@ const ChatPage = () => {
 
     const token = localStorage.getItem('token');
     
-    socketRef.current = io(import.meta.env.VITE_API_URL.replace('/api', ''), {
+    socketRef.current = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
       transports: ['websocket'],
       withCredentials: true,
       auth: {
@@ -58,15 +58,10 @@ const ChatPage = () => {
 
   const fetchHistory = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/chat/history/${bookingId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get(`/chat/history/${bookingId}`);
       setMessages(res.data.data || []);
       // Also fetch counselor name from booking
-      const bookingRes = await axios.get(`${import.meta.env.VITE_API_URL}/bookings/${bookingId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const bookingRes = await api.get(`/bookings/${bookingId}`);
       if (bookingRes.data.data?.counselorProfile?.user?.name) {
         setCounselorName(bookingRes.data.data.counselorProfile.user.name);
       }

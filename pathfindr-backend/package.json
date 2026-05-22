@@ -13,6 +13,8 @@
     "db:migrate": "npx prisma migrate deploy",
     "db:generate": "npx prisma generate",
     "db:seed": "node prisma/seed.js",
+    "db:seed:counselors": "node prisma/seed-counselors-full.js",
+    "db:push": "npx prisma db push",
     "db:studio": "npx prisma studio",
     "docker:build": "docker build -t pathfindr-backend .",
     "health": "curl -s http://localhost:5000/healthz | node -e \"process.stdin.resume(); process.stdin.on('data', d => { const r = JSON.parse(d); console.log(r.status === 'ok' ? 'Healthy' : 'Unhealthy'); });\""

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, Clock, X, CheckCircle, MessageSquare, Video } from 'lucide-react';
-import axios from 'axios';
+import api from '../../api/axios';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
@@ -34,16 +34,12 @@ const BookingModal = ({ counselor, isOpen, onClose }) => {
   const handleBooking = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      
       // 1. Create Free Booking on Backend
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/bookings/create`, {
+      const res = await api.post('/bookings/create', {
         counselorProfileId: counselor.id,
         scheduledAt: selectedSlot,
         amountInr: 0, // Free Session
         sessionType: 'STUDENT_SESSION'
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
 
       const { booking } = res.data.data;

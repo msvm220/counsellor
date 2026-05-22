@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../api/axios';
 import { ChevronLeft, Video, Mic, MicOff, VideoOff, PhoneOff, MessageSquare } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -18,10 +18,7 @@ const VideoCallPage = () => {
 
   const fetchBooking = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/bookings/${bookingId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get(`/bookings/${bookingId}`);
       setBooking(res.data.data);
       setLoading(false);
     } catch (err) {

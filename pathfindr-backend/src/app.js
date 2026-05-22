@@ -3,7 +3,6 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const hpp = require('hpp');
-const xss = require('xss-clean');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
 
@@ -33,7 +32,6 @@ app.use(helmet({
   },
   crossOriginEmbedderPolicy: false, // Allow Daily.co iframe embedding
 }));
-app.use(xss());    // Sanitize user input
 app.use(hpp());    // Prevent HTTP Parameter Pollution
 
 // ── Compression ──

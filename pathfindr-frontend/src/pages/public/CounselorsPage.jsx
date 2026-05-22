@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../api/axios';
+import { toast } from 'react-hot-toast';
 import { 
   Search, Filter, Star, Video, MessageSquare, 
   Briefcase, Heart, Activity, Wallet, Scale, 
@@ -33,7 +34,7 @@ export default function CounselorsPage() {
 
   const fetchCounselors = async () => {
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/counselors`);
+      const res = await api.get('/counselors');
       setCounselors(res.data.data);
       setLoading(false);
     } catch (err) {
@@ -50,9 +51,9 @@ export default function CounselorsPage() {
   const filteredCounselors = counselors.filter(c => {
     const matchesSearch = c.user?.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           c.bio?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          c.expertise?.some(e => e.toLowerCase().includes(searchQuery.toLowerCase()));
+                          c.specializations?.some(e => e.toLowerCase().includes(searchQuery.toLowerCase()));
     
-    const matchesCategory = !selectedCategory || c.expertise?.some(e => e.toLowerCase() === selectedCategory.toLowerCase());
+    const matchesCategory = !selectedCategory || c.specializations?.some(e => e.toLowerCase() === selectedCategory.toLowerCase());
     
     return matchesSearch && matchesCategory;
   });
@@ -167,7 +168,7 @@ export default function CounselorsPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2 mb-8 flex-grow">
-                  {(counselor.expertise?.length > 0 ? counselor.expertise : ['Love', 'Career', 'Wealth']).map(spec => (
+                  {(counselor.specializations?.length > 0 ? counselor.specializations : ['Love', 'Career', 'Wealth']).map(spec => (
                     <span key={spec} className="px-3 py-1.5 bg-muted text-[10px] font-black rounded-xl text-muted-foreground uppercase tracking-widest border border-border">
                       {spec}
                     </span>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../api/axios';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
@@ -14,10 +14,7 @@ const ResultDashboard = () => {
 
   const fetchResult = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/assessment/status`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get('/assessment/status');
       if (res.data.data.hasTaken) {
         setResult(res.data.data.latestResult);
       } else {

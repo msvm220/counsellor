@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { Map, Calendar, Target, Award, PlayCircle, BookMarked, Bell, LogOut, Video, MessageSquare, ChevronRight } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
+import api from '../../api/axios';
 
 export default function DashboardPage() {
   const { user, logout } = useAuthStore();
@@ -17,14 +17,9 @@ export default function DashboardPage() {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token');
       const [statusRes, bookingsRes] = await Promise.all([
-        axios.get(`${import.meta.env.VITE_API_URL}/assessment/status`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        axios.get(`${import.meta.env.VITE_API_URL}/bookings/my-bookings`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        api.get('/assessment/status'),
+        api.get('/bookings/my-bookings')
       ]);
       setAssessmentStatus(statusRes.data.data);
       setBookings(bookingsRes.data.data || []);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../api/axios';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -17,10 +17,7 @@ const AssessmentPage = () => {
 
   const fetchQuestions = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/assessment/questions`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get('/assessment/questions');
       setQuestions(res.data.data);
       setLoading(false);
     } catch (err) {
@@ -50,16 +47,12 @@ const AssessmentPage = () => {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const token = localStorage.getItem('token');
       const formattedAnswers = Object.entries(answers).map(([questionId, value]) => ({
         questionId,
         value
       }));
 
-      await axios.post(`${import.meta.env.VITE_API_URL}/assessment/submit`, 
-        { answers: formattedAnswers },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.post('/assessment/submit', { answers: formattedAnswers });
       
       navigate('/dashboard/results');
     } catch (err) {
